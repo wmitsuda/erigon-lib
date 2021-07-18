@@ -17,16 +17,25 @@
 package state
 
 import (
+	"fmt"
+
 	"github.com/torquem-ch/mdbx-go/mdbx"
 )
 
 type Aggregate struct {
+	env *mdbx.Env
 }
 
 // OpenAggregateRO opens a state aggregate from a read only MDBX environment (database)
-func OpenAggregageRO(envpath string) (*Aggregate, error) {
+func OpenAggregageRO(path string) (*Aggregate, error) {
 	env, err := mdbx.NewEnv()
 	if err != nil {
 		return nil, err
 	}
+	var flags uint = mdbx.Readonly | mdbx.NoReadahead | mdbx.Coalesce | mdbx.Durable
+	err = env.Open(path, flags, 0664)
+	if err != nil {
+		return nil, fmt.Errorf("opening RO aggregate %s: %w", path, err)
+	}
+	return &Aggregate{env: env}, nil
 }
