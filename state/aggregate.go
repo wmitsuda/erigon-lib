@@ -22,12 +22,12 @@ import (
 	"github.com/torquem-ch/mdbx-go/mdbx"
 )
 
-type Aggregate struct {
+type AggregateRO struct {
 	env *mdbx.Env
 }
 
 // OpenAggregateRO opens a state aggregate from a read only MDBX environment (database)
-func OpenAggregageRO(path string) (*Aggregate, error) {
+func OpenAggregageRO(path string) (*AggregateRO, error) {
 	env, err := mdbx.NewEnv()
 	if err != nil {
 		return nil, err
@@ -37,5 +37,66 @@ func OpenAggregageRO(path string) (*Aggregate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening RO aggregate %s: %w", path, err)
 	}
-	return &Aggregate{env: env}, nil
+	return &AggregateRO{env: env}, nil
+}
+
+func (aro *AggregateRO) Close() {
+	aro.env.Close()
+}
+
+type AggregateBuilder struct {
+	env    *mdbx.Env
+	tx     *mdbx.Txn
+	sDbi   mdbx.DBI
+	cursor *mdbx.Cursor
+}
+
+func BuildAggregate(path string) (*AggregateBuilder, error) {
+	env, err := mdbx.NewEnv()
+	if err != nil {
+		return nil, err
+	}
+	var flags uint = mdbx.NoReadahead | mdbx.Coalesce | mdbx.Durable
+	err = env.Open(path, flags, 0664)
+	if err != nil {
+		return nil, fmt.Errorf("creating aggregate builder %s: %w", path, err)
+	}
+	tx, err := env.BeginTxn(nil, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open rw transaction for aggregate builder %s: %w", path, err)
+	}
+	dbi, err := tx.OpenDBI("S", mdbx.DBAccede, nil, nil)
+	if err != nil && !mdbx.IsNotFound(err) {
+		return nil, fmt.Errorf("create table S: %w", err)
+	}
+	if err == nil {
+		return nil, fmt.Errorf("table S already exists")
+	}
+	flags = mdbx.Create | mdbx.DupSort
+
+	if dbi, err = tx.OpenDBI("S", flags, nil, nil); err != nil {
+		return nil, fmt.Errorf("create table S: %w", err)
+	}
+	var cursor *mdbx.Cursor
+	if cursor, err = tx.OpenCursor(dbi); err != nil {
+		return nil, fmt.Errorf("open cursor for S: %w", err)
+	}
+	return &AggregateBuilder{env: env, tx: tx, sDbi: dbi, cursor: cursor}, nil
+}
+
+func (ab *AggregateBuilder) Append(key, value []byte) error {
+	return ab.cursor.Put(key, value, mdbx.Append)
+}
+
+func (ab *AggregateBuilder) AppendComposite(key, value []byte) error {
+	return ab.cursor.Put(key, value, mdbx.AppendDup)
+}
+
+func (ab *AggregateBuilder) Close() error {
+	ab.cursor.Close()
+	if _, err := ab.tx.Commit(); err != nil {
+		return err
+	}
+	ab.env.Close()
+	return nil
 }
