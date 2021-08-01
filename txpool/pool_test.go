@@ -19,7 +19,11 @@ package txpool
 import (
 	"testing"
 
+	"github.com/google/btree"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"pgregory.net/rapid"
 )
 
 func TestSubPoolMarkerOrder(t *testing.T) {
@@ -116,3 +120,99 @@ func hexToSubPool(s string) []uint8 {
 	return a
 }
 */
+
+func TestProp(t *testing.T) {
+	u256 := rapid.Custom(func(t *rapid.T) *uint256.Int { return uint256.NewInt(rapid.Uint64().Draw(t, "u256").(uint64)) })
+	rapid.Check(t, func(t *rapid.T) {
+		assert := assert.New(t)
+
+		ids := rapid.SliceOfN(rapid.Uint64(), 3, 30).Draw(t, "ids").([]uint64)
+		i := 0
+		senders := map[uint64]SenderInfo{}
+		for _, id := range ids {
+			senders[id] = SenderInfo{
+				nonce:      rapid.Uint64().Draw(t, "sender.nonce").(uint64),
+				balance:    *u256.Draw(t, "sender.balance").(*uint256.Int),
+				txNonce2Tx: &Nonce2Tx{btree.New(32)},
+			}
+		}
+		i = 0
+		txs := rapid.SliceOfN(rapid.Custom(func(t *rapid.T) *TxSlot {
+			i++
+			return &TxSlot{
+				senderID: ids[i%len(ids)],
+				nonce:    rapid.Uint64().Draw(t, "tx.nonce").(uint64),
+				tip:      rapid.Uint64().Draw(t, "tx.tip").(uint64),
+				value:    *u256.Draw(t, "tx.value").(*uint256.Int),
+			}
+		}), 100, 8*100).Draw(t, "s2").([]*TxSlot)
+
+		protocolBaseFee := rapid.Uint64().Draw(t, "protocolBaseFee").(uint64)
+		blockBaseFee := rapid.Uint64().Draw(t, "blockBaseFee").(uint64)
+
+		pending, baseFee, queued := NewSubPool(), NewSubPool(), NewSubPool()
+		OnNewBlocks(senders, txs, protocolBaseFee, blockBaseFee, pending, baseFee, queued)
+
+		best, worst := pending.Best(), pending.Worst()
+		assert.LessOrEqual(pending.Len(), PendingSubPoolLimit)
+		assert.False(worst != nil && best == nil)
+		assert.False(worst == nil && best != nil)
+		if worst != nil && worst.SubPool < 0b11110 {
+			t.Fatalf("pending worst too small %b", worst.SubPool)
+		}
+		iterateSubPoolUnordered(pending, func(tx *MetaTx) {
+			i := tx.Tx
+			assert.GreaterOrEqual(i.nonce, senders[i.senderID].nonce)
+			if tx.SubPool&EnoughBalance > 0 {
+				assert.True(tx.SenderHasEnoughBalance)
+			}
+
+			need := uint256.NewInt(i.gas)
+			need = need.Mul(need, uint256.NewInt(i.feeCap))
+			assert.GreaterOrEqual(uint256.NewInt(protocolBaseFee), need.Add(need, &i.value))
+			assert.GreaterOrEqual(uint256.NewInt(blockBaseFee), need.Add(need, &i.value))
+		})
+
+		best, worst = baseFee.Best(), baseFee.Worst()
+
+		assert.False(worst != nil && best == nil)
+		assert.False(worst == nil && best != nil)
+		assert.LessOrEqual(baseFee.Len(), BaseFeeSubPoolLimit)
+		if worst != nil && worst.SubPool < 0b11100 {
+			t.Fatalf("baseFee worst too small %b", worst.SubPool)
+		}
+		iterateSubPoolUnordered(baseFee, func(tx *MetaTx) {
+			i := tx.Tx
+			assert.GreaterOrEqual(i.nonce, senders[i.senderID].nonce)
+			if tx.SubPool&EnoughBalance > 0 {
+				assert.True(tx.SenderHasEnoughBalance)
+			}
+
+			need := uint256.NewInt(i.gas)
+			need = need.Mul(need, uint256.NewInt(i.feeCap))
+			assert.GreaterOrEqual(uint256.NewInt(protocolBaseFee), need.Add(need, &i.value))
+			assert.GreaterOrEqual(uint256.NewInt(blockBaseFee), need.Add(need, &i.value))
+		})
+
+		best, worst = queued.Best(), queued.Worst()
+		assert.LessOrEqual(queued.Len(), QueuedSubPoolLimit)
+		assert.False(worst != nil && best == nil)
+		assert.False(worst == nil && best != nil)
+		if worst != nil && worst.SubPool < 0b10000 {
+			t.Fatalf("queued worst too small %b", worst.SubPool)
+		}
+		iterateSubPoolUnordered(queued, func(tx *MetaTx) {
+			i := tx.Tx
+			assert.GreaterOrEqual(i.nonce, senders[i.senderID].nonce)
+			if tx.SubPool&EnoughBalance > 0 {
+				assert.True(tx.SenderHasEnoughBalance)
+			}
+
+			need := uint256.NewInt(i.gas)
+			need = need.Mul(need, uint256.NewInt(i.feeCap))
+			assert.GreaterOrEqual(uint256.NewInt(protocolBaseFee), need.Add(need, &i.value))
+			assert.GreaterOrEqual(uint256.NewInt(blockBaseFee), need.Add(need, &i.value))
+		})
+
+	})
+}
