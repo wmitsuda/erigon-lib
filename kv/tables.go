@@ -374,7 +374,8 @@ const (
 	CodeR          = "CodeR"          // temporary table for Code reconstitution
 	PlainContractR = "PlainContractR" // temporary table for PlainContract reconstitution
 
-	OtsMinerIndex = "OtsMinerIndex"
+	OtsMinerIndex     = "OtsMinerIndex"
+	OtsApprovalsIndex = "OtsApprovalsIndex"
 )
 
 // Keys
@@ -507,6 +508,7 @@ var ChaindataTables = []string{
 	PlainContractR,
 
 	OtsMinerIndex,
+	OtsApprovalsIndex,
 }
 
 const (
