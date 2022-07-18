@@ -608,6 +608,8 @@ var ChaindataTablesCfg = TableCfg{
 	RStorageIdx:        {Flags: DupSort},
 	RCodeKeys:          {Flags: DupSort},
 	RCodeIdx:           {Flags: DupSort},
+
+	OtsApprovalsIndex: {Flags: DupSort},
 }
 
 var TxpoolTablesCfg = TableCfg{}
