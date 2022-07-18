@@ -375,7 +375,7 @@ const (
 	PlainContractR = "PlainContractR" // temporary table for PlainContract reconstitution
 
 	OtsMinerIndex     = "OtsMinerIndex"
-	OtsApprovalsIndex = "OtsApprovalsIndex"
+	OtsApprovalsIndex = "OtsApprovalsIndexDup"
 )
 
 // Keys
