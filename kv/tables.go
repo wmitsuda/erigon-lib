@@ -467,6 +467,10 @@ const (
 	OtsERC721TransferCounter = "OtsERC721TransferCounter"
 	OtsERC20Holdings         = "OtsERC20Holdings"
 	OtsERC721Holdings        = "OtsERC721Holdings"
+
+	OtsWithdrawalIdx2Block = "OtsWithdrawalIdx2Block"
+	OtsWithdrawalsIndex    = "OtsWithdrawalsIndex"
+	OtsWithdrawalsCounter  = "OtsWithdrawalsCounter"
 )
 
 // Keys
@@ -642,6 +646,10 @@ var ChaindataTables = []string{
 	OtsERC721TransferCounter,
 	OtsERC20Holdings,
 	OtsERC721Holdings,
+
+	OtsWithdrawalIdx2Block,
+	OtsWithdrawalsIndex,
+	OtsWithdrawalsCounter,
 }
 
 const (
@@ -777,6 +785,8 @@ var ChaindataTablesCfg = TableCfg{
 	OtsERC721TransferCounter: {Flags: DupSort},
 	OtsERC20Holdings:         {Flags: DupSort},
 	OtsERC721Holdings:        {Flags: DupSort},
+
+	OtsWithdrawalsCounter: {Flags: DupSort},
 }
 
 var TxpoolTablesCfg = TableCfg{}
